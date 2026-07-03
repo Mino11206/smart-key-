@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Giao Diện Hệ Thống</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f4f6f9; padding: 30px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto 20px; }
+        button { padding: 12px 24px; font-size: 16px; margin: 10px; border: none; border-radius: 4px; cursor: pointer; color: white; }
+        .btn-lock { background: #dc3545; } .btn-unlock { background: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background-color: #007bff; color: white; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Bảng Điều Khiển Cửa (Luồng Web -> Output)</h2>
+        <button class="btn-lock" onclick="sendCommand('LOCK_ALL')">Khóa Cửa Hoàn Toàn</button>
+        <button class="btn-unlock" onclick="sendCommand('UNLOCK_ALL')">Mở Khóa Hệ Thống</button>
+    </div>
+
+    <div class="card">
+        <h2>Lịch Sử Quẹt Thẻ (Luồng Input -> Web)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Mã Thẻ (UID)</th>
+                    <th>Trạng Thái</th>
+                    <th>Thời Gian</th>
+                </tr>
+            </thead>
+            <tbody id="logTable"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // 1. Hàm test nút bấm gửi dữ liệu sang Backend
+        function sendCommand(cmd) {
+            fetch('http://localhost:3000/api/control-door', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: cmd })
+            })
+            .then(res => res.json())
+            .then(data => alert(data.status))
+            .catch(err => alert("Lỗi kết nối Backend: " + err));
+        }
+
+        // 2. Hàm tự động lấy dữ liệu lịch sử từ Backend về hiển thị
+        window.onload = function() {
+            fetch('http://localhost:3000/api/history')
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('logTable');
+                data.forEach(log => {
+                    tbody.innerHTML += `<tr>
+                        <td><b>${log.card_uid}</b></td>
+                        <td>${log.status}</td>
+                        <td>${new Date(log.scanned_at).toLocaleTimeString('vi-VN')}</td>
+                    </tr>`;
+                });
+            })
+            .catch(err => console.error("Không lấy được lịch sử:", err));
+        }
+    </script>
+</body>
+</html>
