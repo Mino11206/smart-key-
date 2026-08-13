@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Cửa Thông Minh - Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #f0f2f5; display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: #1f2937; color: white; padding: 30px 20px; }
+        .sidebar h2 { margin-bottom: 30px; font-size: 20px; text-align: center; color: #38bdf8; }
+        .main-content { flex: 1; padding: 40px; overflow-y: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h3 { margin-bottom: 20px; color: #4b5563; }
+        button { padding: 12px 24px; font-size: 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; margin-right: 10px; transition: 0.2s; }
+        .btn-lock { background-color: #ef4444; color: white; }
+        .btn-lock:hover { background-color: #dc2626; }
+        .btn-unlock { background-color: #10b981; color: white; }
+        .btn-unlock:hover { background-color: #059669; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { background-color: #f3f4f6; color: #374151; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>Smart Door System</h2>
+        <p style="text-align: center; color: #9ca3af; margin-top: 20px;">Chào mừng, <br><b id="user-display" style="color: white;">Sinh viên</b></p>
+        <button onclick="logout()" style="width: 100%; margin-top: 50px; background: #374151; color: #f9fafb;">Đăng xuất</button>
+        <button onclick="window.location.href='change-password.html'" style="width: 100%; margin-top: 20px; background-color: #3b82f6; color: white;">
+        Đổi mật khẩu
+        </button>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>Bảng Điều Khiển Hệ Thống</h1>
+        </div>
+
+        <div class="card-grid">
+            <div class="card">
+                <h3>Khóa / Mở Hệ Thống Cửa</h3>
+                <p style="color: #6b7280; margin-bottom: 20px;">Cấu hình trạng thái hoạt động của chốt cửa Servo vật lý.</p>
+                <button class="btn-lock" onclick="controlDoor('LOCK_ALL')">Khóa Cửa Hoàn Toàn</button>
+                <button class="btn-unlock" onclick="controlDoor('UNLOCK_ALL')">Mở Khóa Hệ Thống</button>
+            </div>
+
+            <div class="card">
+                <h3>Thống Kê Lượt Ra Vào</h3>
+                <canvas id="accessChart" height="150"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Lịch Sử Quẹt Thẻ RFID Gần Đây</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID Log</th>
+                        <th>Mã Thẻ (UID)</th>
+                        <th>Trạng Thái Cửa</th>
+                        <th>Thời Gian Ghi Nhận</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Kiểm tra xem đã đăng nhập chưa, nếu chưa bắt quay lại trang login
+        if(!localStorage.getItem('isLoggedIn')) {
+            window.location.href = 'login.html';
+        } else {
+            document.getElementById('user-display').innerText = localStorage.getItem('fullName');
+        }
+
+        // Hàm gọi API gửi lệnh điều khiển xuống Servo
+        function controlDoor(cmd) {
+            fetch('http://localhost:3000/api/control-door', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: cmd })
+            })
+            .then(res => res.json())
+            .then(data => alert(data.status))
+            .catch(err => alert("Lỗi kết nối Backend: " + err));
+        }
+
+        // Hàm lấy dữ liệu lịch sử từ Database SQL về hiển thị lên giao diện Web
+        function fetchHistory() {
+            fetch('http://localhost:3000/api/history')
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('historyBody');
+                tbody.innerHTML = '';
+                
+                data.forEach(log => {
+                    tbody.innerHTML += `<tr>
+                        <td>${log.id}</td>
+                        <td><b>${log.card_uid}</b></td>
+                        <td><span style="color: ${log.status.includes('thành công') ? '#10b981':'#ef4444'}">${log.status}</span></td>
+                        <td>${new Date(log.scanned_at).toLocaleString('vi-VN')}</td>
+                    </tr>`;
+                });
+
+                renderChart(data);
+            });
+        }
+
+        // Vẽ biểu đồ Chart.js (YCNC 5)
+        let myChart = null;
+        function renderChart(data) {
+            const ctx = document.getElementById('accessChart').getContext('2d');
+            
+            // Thống kê đơn giản tổng số lượt để hiển thị lên Chart
+            const total = data.length;
+
+            if(myChart) myChart.destroy(); // Xóa biểu đồ cũ để vẽ lại mới khi cập nhật
+
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Tổng lượt truy cập hệ thống'],
+                    datasets: [{
+                        label: 'Số lần tương tác thẻ',
+                        data: [total],
+                        backgroundColor: '#38bdf8',
+                        borderRadius: 6
+                    }]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'login.html';
+        }
+
+        // Tự động cập nhật dữ liệu sau mỗi 1 giây (Real-time mô phỏng)
+        fetchHistory();
+        setInterval(fetchHistory, 1000);
+    </script>
+</body>
+</html>
