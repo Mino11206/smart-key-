@@ -3,149 +3,497 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Cửa Thông Minh - Dashboard</title>
+    <title>Hệ thống quản lý cửa thông minh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
-        body { background-color: #f0f2f5; display: flex; min-height: 100vh; }
-        .sidebar { width: 260px; background-color: #1f2937; color: white; padding: 30px 20px; }
-        .sidebar h2 { margin-bottom: 30px; font-size: 20px; text-align: center; color: #38bdf8; }
-        .main-content { flex: 1; padding: 40px; overflow-y: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        h3 { margin-bottom: 20px; color: #4b5563; }
-        button { padding: 12px 24px; font-size: 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; margin-right: 10px; transition: 0.2s; }
-        .btn-lock { background-color: #ef4444; color: white; }
-        .btn-lock:hover { background-color: #dc2626; }
-        .btn-unlock { background-color: #10b981; color: white; }
-        .btn-unlock:hover { background-color: #059669; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        th { background-color: #f3f4f6; color: #374151; font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .nav-item.active { background-color: #1e3a8a; border-left: 4px solid #60a5fa; }
     </style>
 </head>
-<body>
+<body class="bg-gray-100 font-sans h-screen overflow-hidden">
 
-    <div class="sidebar">
-        <h2>Smart Door System</h2>
-        <p style="text-align: center; color: #9ca3af; margin-top: 20px;">Chào mừng, <br><b id="user-display" style="color: white;">Sinh viên</b></p>
-        <button onclick="logout()" style="width: 100%; margin-top: 50px; background: #374151; color: #f9fafb;">Đăng xuất</button>
-        <button onclick="window.location.href='change-password.html'" style="width: 100%; margin-top: 20px; background-color: #3b82f6; color: white;">
-        Đổi mật khẩu
-        </button>
-    </div>
-
-    <div class="main-content">
-        <div class="header">
-            <h1>Bảng Điều Khiển Hệ Thống</h1>
-        </div>
-
-        <div class="card-grid">
-            <div class="card">
-                <h3>Khóa / Mở Hệ Thống Cửa</h3>
-                <p style="color: #6b7280; margin-bottom: 20px;">Cấu hình trạng thái hoạt động của chốt cửa Servo vật lý.</p>
-                <button class="btn-lock" onclick="controlDoor('LOCK_ALL')">Khóa Cửa Hoàn Toàn</button>
-                <button class="btn-unlock" onclick="controlDoor('UNLOCK_ALL')">Mở Khóa Hệ Thống</button>
-            </div>
-
-            <div class="card">
-                <h3>Thống Kê Lượt Ra Vào</h3>
-                <canvas id="accessChart" height="150"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Lịch Sử Quẹt Thẻ RFID Gần Đây</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID Log</th>
-                        <th>Mã Thẻ (UID)</th>
-                        <th>Trạng Thái Cửa</th>
-                        <th>Thời Gian Ghi Nhận</th>
-                    </tr>
-                </thead>
-                <tbody id="historyBody">
-                    </tbody>
-            </table>
+    <!-- MÀN HÌNH ĐĂNG NHẬP -->
+    <div id="login-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-[#3b82f6]">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-96 text-center">
+            <h2 class="text-xl font-bold mb-6 text-white bg-[#1e40af] py-2 rounded">Hệ thống mở khóa cửa thông minh</h2>
+            <input type="text" id="login-username" placeholder="Tên đăng nhập" class="w-full mb-4 p-3 border rounded focus:outline-blue-500">
+            <input type="password" id="login-password" placeholder="Mật khẩu" class="w-full mb-6 p-3 border rounded focus:outline-blue-500">
+            <button onclick="login()" class="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded hover:bg-gray-50 shadow">Đăng nhập</button>
+            <p id="login-error" class="text-red-500 mt-3 text-sm hidden"></p>
         </div>
     </div>
 
-    <script>
-        // Kiểm tra xem đã đăng nhập chưa, nếu chưa bắt quay lại trang login
-        if(!localStorage.getItem('isLoggedIn')) {
-            window.location.href = 'login.html';
-        } else {
-            document.getElementById('user-display').innerText = localStorage.getItem('fullName');
-        }
+    <!-- MÀN HÌNH CHÍNH -->
+    <div id="main-layout" class="hidden flex h-full">
+        <!-- Sidebar -->
+        <div class="w-64 bg-[#3b82f6] text-white flex flex-col h-full shadow-lg">
+            <div class="p-6 text-center font-bold text-lg border-b border-blue-400">
+                Menu Quản Lý
+            </div>
+            <nav class="flex-1 mt-4 flex flex-col">
+                <div class="nav-item active px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('home')">Trang chủ</div>
+                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('history')">Lịch sử</div>
+                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('cards')">Quản lý thẻ</div>
+                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600 border-b border-blue-400" onclick="switchTab('account')">Tài khoản</div>
 
-        // Hàm gọi API gửi lệnh điều khiển xuống Servo
-        function controlDoor(cmd) {
-            fetch('http://localhost:3000/api/control-door', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command: cmd })
-            })
-            .then(res => res.json())
-            .then(data => alert(data.status))
-            .catch(err => alert("Lỗi kết nối Backend: " + err));
-        }
+                <!-- BẢNG ĐIỀU KHIỂN KHẨN CẤP -->
+                <div class="p-4 mt-4 flex flex-col gap-3 flex-1">
+                    <h3 class="font-bold text-sm text-blue-200 uppercase tracking-wider mb-1">Điều khiển cửa</h3>
+                    
+                    <!-- BỔ SUNG: Hiển thị trạng thái vật lý của cánh cửa -->
+                    <div class="mb-1 p-3 bg-blue-800 rounded text-sm shadow-inner">
+                        <span class="text-gray-300">Cánh cửa: </span>
+                        <strong id="door-physical-badge" class="text-green-400">Đang tải...</strong>
+                        <p id="door-warning-note" class="text-red-400 text-xs mt-2 hidden font-bold leading-tight">
+                            ⚠️ Cửa đang mở vật lý, không thể đổi chế độ!
+                        </p>
+                    </div>
+                    
+                    <button id="btn-AUTO" onclick="controlDoor('AUTO')" class="px-4 py-3 bg-blue-700 text-white font-bold rounded shadow-md relative transition">
+                        Chế độ AUTO
+                        <span id="badge-AUTO" class="hidden absolute -top-2 -right-2 bg-yellow-400 text-xs text-gray-900 px-2 py-1 rounded-full font-bold shadow-sm">Đang bật</span>
+                    </button>
+                    
+                    <button id="btn-UNLOCKED" onclick="controlDoor('UNLOCKED')" class="px-4 py-3 bg-green-500 text-white font-bold rounded shadow-md relative transition">
+                        MỞ (UNLOCKED)
+                        <span id="badge-UNLOCKED" class="hidden absolute -top-2 -right-2 bg-yellow-400 text-xs text-gray-900 px-2 py-1 rounded-full font-bold shadow-sm">Đang bật</span>
+                    </button>
+                    
+                    <button id="btn-LOCKED" onclick="controlDoor('LOCKED')" class="px-4 py-3 bg-red-500 text-white font-bold rounded shadow-md relative transition">
+                        KHÓA (LOCKED)
+                        <span id="badge-LOCKED" class="hidden absolute -top-2 -right-2 bg-yellow-400 text-xs text-gray-900 px-2 py-1 rounded-full font-bold shadow-sm">Đang bật</span>
+                    </button>
+                </div>
 
-        // Hàm lấy dữ liệu lịch sử từ Database SQL về hiển thị lên giao diện Web
-        function fetchHistory() {
-            fetch('http://localhost:3000/api/history')
-            .then(res => res.json())
-            .then(data => {
-                const tbody = document.getElementById('historyBody');
-                tbody.innerHTML = '';
-                
-                data.forEach(log => {
-                    tbody.innerHTML += `<tr>
-                        <td>${log.id}</td>
-                        <td><b>${log.card_uid}</b></td>
-                        <td><span style="color: ${log.status.includes('thành công') ? '#10b981':'#ef4444'}">${log.status}</span></td>
-                        <td>${new Date(log.scanned_at).toLocaleString('vi-VN')}</td>
-                    </tr>`;
-                });
+                <div class="px-6 py-3 cursor-pointer hover:bg-red-500 bg-red-400 font-bold mt-auto" onclick="logout()">Đăng xuất</div>
+            </nav>
+        </div>
 
-                renderChart(data);
-            });
-        }
-
-        // Vẽ biểu đồ Chart.js (YCNC 5)
-        let myChart = null;
-        function renderChart(data) {
-            const ctx = document.getElementById('accessChart').getContext('2d');
+        <!-- Content Area -->
+        <div class="flex-1 bg-white p-8 overflow-y-auto">
             
-            // Thống kê đơn giản tổng số lượt để hiển thị lên Chart
-            const total = data.length;
+            <!-- TAB TRANG CHỦ (Chatbot Placeholder) -->
+            <div id="tab-home" class="tab-content active h-full flex flex-col items-center justify-center">
+                <div class="text-center w-full max-w-2xl">
+                    <img src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" alt="Bot" class="w-32 h-32 mx-auto mb-4">
+                    <h1 class="text-3xl font-bold text-gray-700 mb-2">AI Assistant Chatbot</h1>
+                    <p class="text-gray-500 mb-6">How can I help you today?</p>
+                    
+                    <!-- KHUNG NHẬP CHAT MỚI -->
+                    <div class="relative w-full shadow-inner rounded-full bg-gray-100 flex items-center">
+                        <input type="text" id="chat-input" onkeypress="handleChatEnter(event)" 
+                               placeholder="Nhập câu hỏi..." 
+                               class="w-full p-4 pr-24 bg-transparent border border-gray-300 rounded-full focus:outline-blue-500 focus:border-blue-500">
+                        <button onclick="sendChatMessage()" 
+                                class="absolute right-2 bg-[#3b82f6] hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full transition shadow">
+                            Gửi
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-            if(myChart) myChart.destroy(); // Xóa biểu đồ cũ để vẽ lại mới khi cập nhật
+            <!-- TAB LỊCH SỬ -->
+            <div id="tab-history" class="tab-content">
+                <h2 class="text-2xl font-bold text-[#1e3a8a] mb-6">Biểu đồ quẹt thẻ</h2>
+                <div class="w-full max-w-lg mb-10">
+                    <canvas id="accessChart"></canvas>
+                </div>
 
-            myChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Tổng lượt truy cập hệ thống'],
-                    datasets: [{
-                        label: 'Số lần tương tác thẻ',
-                        data: [total],
-                        backgroundColor: '#38bdf8',
-                        borderRadius: 6
-                    }]
-                },
-                options: { responsive: true, scales: { y: { beginAtZero: true } } }
-            });
+                <h2 class="text-2xl font-bold text-[#1e3a8a] mb-4">Truy cập gần đây</h2>
+                <div class="overflow-x-auto shadow rounded-lg border">
+                    <table class="w-full text-left bg-white">
+                        <thead class="bg-gray-100 border-b">
+                            <tr>
+                                <th class="p-4">UID Thẻ</th>
+                                <th class="p-4">Tên người dùng</th>
+                                <th class="p-4">Thời gian</th>
+                                <th class="p-4">Trạng thái</th>
+                                <th class="p-4">Ghi chú</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table" class="divide-y text-sm">
+                            <!-- Dữ liệu JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB QUẢN LÝ THẺ -->
+            <div id="tab-cards" class="tab-content">
+                <h2 class="text-2xl font-bold text-[#1e3a8a] mb-6">Danh sách các thẻ đã phát hành</h2>
+                <div class="overflow-x-auto shadow rounded-lg border">
+                    <table class="w-full text-left bg-white">
+                        <thead class="bg-gray-100 border-b">
+                            <tr>
+                                <th class="p-4">Mã UID</th>
+                                <th class="p-4">Tên chủ thẻ</th>
+                                <th class="p-4">Quyền hạn</th>
+                                <th class="p-4">Tình trạng</th>
+                                <th class="p-4">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cards-table" class="divide-y text-sm">
+                            <!-- Dữ liệu JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB TÀI KHOẢN -->
+            <div id="tab-account" class="tab-content p-8">
+                <h2 class="text-2xl font-bold text-[#1e3a8a] mb-6">Thông tin tài khoản</h2>
+                <div class="max-w-md bg-white p-6 rounded-lg shadow border text-gray-700">
+                    <div class="mb-3 flex"><strong class="w-32">Tài khoản:</strong> <span id="acc-username">admin</span></div>
+                    <div class="mb-3 flex"><strong class="w-32">Email:</strong> <span id="acc-email">Đang tải...</span></div>
+                    <div class="mb-6 flex"><strong class="w-32">Ngày tạo:</strong> <span id="acc-created">Đang tải...</span></div>
+
+                    <!-- Nút mở form chỉnh sửa -->
+                    <button onclick="toggleEditForm()" class="text-blue-600 font-bold hover:underline mb-4 block">
+                        ⚙️ Chỉnh sửa thông tin
+                    </button>
+
+                    <!-- Khung Form Cập nhật (Mặc định ẩn) -->
+                    <div id="edit-form" class="hidden border-t pt-4 space-y-3 bg-gray-50 p-4 rounded">
+                        <h3 class="font-bold text-sm text-gray-600">Xác thực và thay đổi</h3>
+                        <div>
+                            <label class="text-xs font-semibold">Mật khẩu hiện tại (Bắt buộc):</label>
+                            <input type="password" id="current-password" placeholder="Nhập mật khẩu hiện tại" class="w-full border p-2 rounded text-sm mt-1">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold">Email mới (Bỏ trống nếu không đổi):</label>
+                            <input type="email" id="update-email" placeholder="Email mới" class="w-full border p-2 rounded text-sm mt-1">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold">Mật khẩu mới (Bỏ trống nếu không đổi):</label>
+                            <input type="password" id="update-password" placeholder="Mật khẩu mới" class="w-full border p-2 rounded text-sm mt-1">
+                        </div>
+                        <div class="flex gap-2 pt-2">
+                            <button onclick="submitUpdateAccount()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-blue-700">Lưu thay đổi</button>
+                            <button onclick="toggleEditForm()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-bold hover:bg-gray-400">Hủy</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let chartInstance = null;
+        let doorStatusInterval = null; // Biến lưu chu kỳ kiểm tra trạng thái cửa
+
+        // Hàm ẩn/hiện form chỉnh sửa
+        function toggleEditForm() {
+            const form = document.getElementById('edit-form');
+            form.classList.toggle('hidden');
+        }
+
+        // Hàm gửi yêu cầu cập nhật lên Backend
+        async function submitUpdateAccount() {
+            const username = localStorage.getItem('currentUser') || document.getElementById('acc-username').innerText;
+            const currentPassword = document.getElementById('current-password').value;
+            const newEmail = document.getElementById('update-email').value;
+            const newPassword = document.getElementById('update-password').value;
+
+            if (!currentPassword) {
+                alert('Vui lòng nhập mật khẩu hiện tại để xác thực!');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/update-account`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, currentPassword, newEmail, newPassword })
+                });
+                
+                const data = await res.json();
+
+                if (data.success) {
+                    alert(data.message);
+                    location.reload(); 
+                } else {
+                    alert('Lỗi: ' + (data.message || data.error || 'Xác thực thất bại!'));
+                }
+            } catch (error) {
+                console.error("Chi tiết lỗi:", error);
+                alert('Lỗi hệ thống: ' + error.message);
+            }
+        }
+
+        // Xử lý Tab Navigation
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            event.currentTarget.classList.add('active');
+
+            if (tabId === 'history') loadHistory();
+            if (tabId === 'cards') loadCards();
+            if (tabId === 'account') loadAccount();
+        }
+
+        // 1. Logic Đăng nhập & Đăng xuất
+        async function login() {
+            const user = document.getElementById('login-username').value;
+            const pass = document.getElementById('login-password').value;
+            
+            try {
+                const res = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    localStorage.setItem('currentUser', user);
+                    document.getElementById('login-screen').classList.add('hidden');
+                    document.getElementById('main-layout').classList.remove('hidden');
+                    
+                    // Gọi hàm kiểm tra trạng thái ngay lập tức và thiết lập vòng lặp mỗi 2 giây
+                    fetchDoorStatus();
+                    doorStatusInterval = setInterval(fetchDoorStatus, 2000);
+                } else {
+                    document.getElementById('login-error').innerText = data.message;
+                    document.getElementById('login-error').classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error("Lỗi chi tiết:", err); 
+                alert('Lỗi: ' + err.message); 
+            }
         }
 
         function logout() {
-            localStorage.clear();
-            window.location.href = 'login.html';
+            document.getElementById('main-layout').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('login-password').value = '';
+            
+            // Xóa vòng lặp khi đăng xuất
+            if(doorStatusInterval) clearInterval(doorStatusInterval);
         }
 
-        // Tự động cập nhật dữ liệu sau mỗi 1 giây (Real-time mô phỏng)
-        fetchHistory();
-        setInterval(fetchHistory, 1000);
+        // 2. Logic Điều khiển cửa & Trạng thái vật lý
+        let currentDoorMode = 'AUTO'; 
+
+        // Lấy trạng thái từ Database & MQTT
+        async function fetchDoorStatus() {
+            try {
+                const res = await fetch(`${API_URL}/door-status`);
+                const data = await res.json();
+                
+                const mode = data.mode || data.status; // Hỗ trợ cả 2 tên biến cũ/mới
+                updateDoorUI(mode);
+
+                // CẬP NHẬT TRẠNG THÁI VẬT LÝ VÀ CHẶN NÚT
+                const physicalBadge = document.getElementById("door-physical-badge");
+                const warningNote = document.getElementById("door-warning-note");
+                const btnAuto = document.getElementById("btn-AUTO");
+                const btnUnlocked = document.getElementById("btn-UNLOCKED");
+                const btnLocked = document.getElementById("btn-LOCKED");
+
+                if (data.physicalState === 'OPEN') {
+                    physicalBadge.innerText = "Đang mở (OPEN)";
+                    physicalBadge.className = "text-red-400"; // Chữ màu đỏ
+                    warningNote.classList.remove("hidden"); // Hiện cảnh báo
+
+                    // Vô hiệu hóa nút và làm mờ
+                    [btnAuto, btnUnlocked, btnLocked].forEach(btn => {
+                        btn.disabled = true;
+                        btn.classList.add("opacity-50", "cursor-not-allowed");
+                    });
+                } else {
+                    physicalBadge.innerText = "Đang khép kín (CLOSED)";
+                    physicalBadge.className = "text-green-400"; // Chữ màu xanh lục
+                    warningNote.classList.add("hidden"); // Ẩn cảnh báo
+
+                    // Trả lại trạng thái cho các nút
+                    [btnAuto, btnUnlocked, btnLocked].forEach(btn => {
+                        btn.disabled = false;
+                        btn.classList.remove("opacity-50", "cursor-not-allowed");
+                    });
+                }
+
+            } catch (error) {
+                console.error("Lỗi lấy trạng thái cửa", error);
+            }
+        }
+
+        function updateDoorUI(status) {
+            currentDoorMode = status; 
+            
+            const modes = ['AUTO', 'UNLOCKED', 'LOCKED'];
+            modes.forEach(mode => {
+                const btn = document.getElementById(`btn-${mode}`);
+                const badge = document.getElementById(`badge-${mode}`);
+                
+                if (mode === status) {
+                    btn.classList.add('ring-4', 'ring-yellow-300', 'opacity-90'); 
+                    badge.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('ring-4', 'ring-yellow-300', 'opacity-90');
+                    badge.classList.add('hidden');
+                }
+            });
+        }
+
+        async function controlDoor(command) {
+            if (command === currentDoorMode) {
+                alert(`❌ LỖI: Chế độ ${command} hiện đang được kích hoạt! Vui lòng chọn chế độ khác.`);
+                return; 
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/control-door`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command })
+                });
+                const data = await res.json();
+                
+                if (!data.success) {
+                    // Hiện lỗi nếu Backend từ chối (Vd: cửa đang mở)
+                    alert(`⚠️ ${data.message}`);
+                    return;
+                }
+
+                updateDoorUI(command);
+                alert(`✅ ${data.status}`);
+                fetchDoorStatus(); // Reload lại UI
+            } catch (error) {
+                alert('❌ Lỗi kết nối khi điều khiển cửa!');
+            }
+        }
+
+        // 3. Logic Lịch sử & Biểu đồ
+        async function loadHistory() {
+            try {
+                const res = await fetch(`${API_URL}/history`);
+                const data = await res.json();
+                const tbody = document.getElementById('history-table');
+                tbody.innerHTML = '';
+
+                let successCount = 0; let failCount = 0;
+
+                data.forEach(row => {
+                    row.status === 1 ? successCount++ : failCount++;
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="p-4 font-mono">${row.uid}</td>
+                            <td class="p-4">${row.holder_name || '<i>Không xác định</i>'}</td>
+                            <td class="p-4">${new Date(row.access_time).toLocaleString('vi-VN')}</td>
+                            <td class="p-4 font-bold ${row.status === 1 ? 'text-green-600' : 'text-red-600'}">
+                                ${row.status === 1 ? 'HỢP LỆ' : 'TỪ CHỐI'}
+                            </td>
+                            <td class="p-4 text-gray-500">${row.note || ''}</td>
+                        </tr>
+                    `;
+                });
+                drawChart(successCount, failCount);
+            } catch (e) { console.error(e); }
+        }
+
+        function drawChart(success, fail) {
+            const ctx = document.getElementById('accessChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Truy cập Hợp lệ', 'Truy cập Bất hợp lệ'],
+                    datasets: [{
+                        label: 'Số lượt',
+                        data: [success, fail],
+                        backgroundColor: ['#a78bfa', '#9ca3af'] 
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            });
+        }
+
+        // 4. Logic Quản lý Thẻ
+        async function loadCards() {
+            try {
+                const res = await fetch(`${API_URL}/cards`);
+                const data = await res.json();
+                const tbody = document.getElementById('cards-table');
+                tbody.innerHTML = '';
+
+                data.forEach(card => {
+                    const statusClass = card.status === 'ACTIVE' ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100';
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="p-4 font-mono font-bold text-blue-600">${card.uid}</td>
+                            <td class="p-4"><input type="text" id="name-${card.uid}" value="${card.holder_name}" class="border p-1 w-full rounded"></td>
+                            <td class="p-4 text-gray-600">${card.role}</td>
+                            <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${card.status}</span></td>
+                            <td class="p-4 flex gap-2">
+                                ${card.status === 'ACTIVE' 
+                                    ? `<button onclick="updateCard('${card.uid}', 'DISABLED', '${card.role}')" class="bg-yellow-500 text-white px-3 py-1 rounded text-xs font-bold">Khóa</button>` 
+                                    : `<button onclick="updateCard('${card.uid}', 'ACTIVE', '${card.role}')" class="bg-green-500 text-white px-3 py-1 rounded text-xs font-bold">Mở khóa</button>`
+                                }
+                                <button onclick="updateCard('${card.uid}', '${card.status}', '${card.role}')" class="bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold">Lưu Tên</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        async function updateCard(uid, newStatus, role) {
+            const newName = document.getElementById(`name-${uid}`).value;
+            try {
+                await fetch(`${API_URL}/cards/${uid}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus, role: role, holder_name: newName })
+                });
+                loadCards(); 
+            } catch (e) { alert('Lỗi cập nhật thẻ!'); }
+        }
+
+        // 5. Logic Tải thông tin tài khoản
+        async function loadAccount() {
+            const username = localStorage.getItem('currentUser');
+            if (!username) return;
+
+            try {
+                const res = await fetch(`${API_URL}/account?username=${username}`);
+                const data = await res.json();
+                
+                if (!data.error) {
+                    document.getElementById('acc-username').innerText = data.username;
+                    document.getElementById('acc-email').innerText = data.email;
+                    document.getElementById('acc-created').innerText = new Date(data.created_at).toLocaleDateString('vi-VN');
+                }
+            } catch (e) { console.error("Lỗi tải thông tin:", e); }
+        }
+
+        // Bắt sự kiện Chatbot
+        function handleChatEnter(event) {
+            if (event.key === 'Enter') sendChatMessage();
+        }
+
+        async function sendChatMessage() {
+            const inputEl = document.getElementById('chat-input');
+            const message = inputEl.value.trim();
+
+            if (!message) return;
+            
+            alert(`Bạn vừa gửi lệnh: "${message}"\nTính năng xử lý AI đang được xây dựng ở Backend!`);
+            inputEl.value = ''; 
+        }
+
+        // Kiểm tra nếu đã login từ trước (khi F5 trang)
+        window.onload = () => {
+            if(localStorage.getItem('currentUser')) {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('main-layout').classList.remove('hidden');
+                fetchDoorStatus();
+                doorStatusInterval = setInterval(fetchDoorStatus, 2000);
+            }
+        };
     </script>
 </body>
 </html>

@@ -1,13 +1,4 @@
-// Hàm gửi lệnh điều khiển xuống Servo qua Backend
-function controlDoor(command) {
-    fetch('http://localhost:3000/api/control-door', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: command })
-    })
-    .then(res => res.json())
-    .then(data => alert(data.status));
-}
+
 
 // Hàm lấy lịch sử từ Database SQL và cập nhật giao diện
 function loadHistory() {
