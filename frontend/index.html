@@ -33,10 +33,10 @@
                 Menu Quản Lý
             </div>
             <nav class="flex-1 mt-4 flex flex-col">
-                <div class="nav-item active px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('home')">Trang chủ</div>
-                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('history')">Lịch sử</div>
-                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('cards')">Quản lý thẻ</div>
-                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600 border-b border-blue-400" onclick="switchTab('account')">Tài khoản</div>
+                <div class="nav-item active px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('home', this)">Trang chủ</div>
+                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('history', this)">Lịch sử</div>
+                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600" onclick="switchTab('cards', this)">Quản lý thẻ</div>
+                <div class="nav-item px-6 py-3 cursor-pointer hover:bg-blue-600 border-b border-blue-400" onclick="switchTab('account', this)">Tài khoản</div>
 
                 <!-- BẢNG ĐIỀU KHIỂN KHẨN CẤP -->
                 <div class="p-4 mt-4 flex flex-col gap-3 flex-1">
@@ -82,22 +82,134 @@
                     <p class="text-gray-500 mb-6">How can I help you today?</p>
                     
                     <!-- KHUNG NHẬP CHAT MỚI -->
-                    <div class="relative w-full shadow-inner rounded-full bg-gray-100 flex items-center">
-                        <input type="text" id="chat-input" onkeypress="handleChatEnter(event)" 
-                               placeholder="Nhập câu hỏi..." 
-                               class="w-full p-4 pr-24 bg-transparent border border-gray-300 rounded-full focus:outline-blue-500 focus:border-blue-500">
-                        <button onclick="sendChatMessage()" 
-                                class="absolute right-2 bg-[#3b82f6] hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full transition shadow">
-                            Gửi
-                        </button>
+                    <div class="w-full flex flex-col items-center">
+ 
+
+                        <!-- Khung hội thoại -->
+                        <div
+                            id="chat-messages"
+                            class="w-full max-w-3xl h-[350px]
+                                overflow-y-auto
+                                bg-gray-50
+                                border border-gray-200
+                                rounded-2xl
+                                p-5
+                                shadow-sm
+                                mb-4"
+                        >
+
+                        <!-- Tin nhắn mặc định -->
+                        <div class="flex justify-start mb-4">
+
+                            <div
+                                class="bg-white
+                                    border border-gray-200
+                                    rounded-2xl rounded-tl-md
+                                    px-4 py-3
+                                    max-w-[80%]
+                                    shadow-sm"
+                            >
+
+                            <div class="font-bold text-blue-600 mb-1">
+                                AI Assistant
+                            </div>
+
+                            <div class="text-gray-700">
+                                Xin chào! Tôi có thể hỗ trợ bạn về
+                                hệ thống Smart Key.
+                            </div>
+
+                        </div>
+
                     </div>
+
+                </div>
+
+            <!-- Ô nhập -->
+            <div class="w-full max-w-3xl">
+
+                <div class="relative">
+
+                    <input
+                        type="text"
+                        id="chat-input"
+                        placeholder="Nhập câu hỏi..."
+                        maxlength="1000"
+                        autocomplete="off"
+                        onkeypress="handleChatEnter(event)"
+                        class="w-full
+                            border border-gray-300
+                            rounded-full
+                            py-3
+                            pl-5
+                            pr-24
+                            focus:outline-none
+                            focus:ring-2
+                            focus:ring-blue-400"
+                    >
+
+                    <button
+                        id="chat-send-button"
+                        onclick="sendChatMessage()"
+                        class="absolute
+                            right-2
+                            top-1/2
+                            -translate-y-1/2
+                            bg-blue-500
+                            text-white
+                            font-bold
+                            py-2
+                            px-6
+                            rounded-full
+                            hover:bg-blue-600
+                            transition"
+                    >
+                        Gửi
+                    </button>
+
+            </div>
+
+                <p class="text-xs text-gray-400 mt-2 text-center">
+                    Nhấn Enter để gửi • Tối đa 1000 ký tự
+                </p>
+
+            </div>
+
+        </div>
                 </div>
             </div>
 
             <!-- TAB LỊCH SỬ -->
             <div id="tab-history" class="tab-content">
-                <h2 class="text-2xl font-bold text-[#1e3a8a] mb-6">Biểu đồ quẹt thẻ</h2>
-                <div class="w-full max-w-lg mb-10">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <h2 class="text-2xl font-bold text-[#1e3a8a]">Lịch sử truy cập từ AWS Cloud</h2>
+                    <div class="flex items-center gap-2">
+                        <label for="chart-days" class="text-sm font-semibold text-gray-600">Thống kê:</label>
+                        <select id="chart-days" onchange="loadHistoryFromAWS()" class="border rounded px-3 py-2 text-sm bg-white">
+                            <option value="7">7 ngày</option>
+                            <option value="14">14 ngày</option>
+                            <option value="30" selected>30 ngày</option>
+                            <option value="90">90 ngày</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div class="p-4 rounded-lg border bg-blue-50">
+                        <p class="text-sm text-gray-500">Tổng lượt truy cập</p>
+                        <p id="summary-total" class="text-2xl font-bold text-blue-700">0</p>
+                    </div>
+                    <div class="p-4 rounded-lg border bg-green-50">
+                        <p class="text-sm text-gray-500">Hợp lệ</p>
+                        <p id="summary-success" class="text-2xl font-bold text-green-700">0</p>
+                    </div>
+                    <div class="p-4 rounded-lg border bg-red-50">
+                        <p class="text-sm text-gray-500">Bị từ chối</p>
+                        <p id="summary-fail" class="text-2xl font-bold text-red-700">0</p>
+                    </div>
+                </div>
+
+                <div class="w-full max-w-5xl mb-10 bg-white border rounded-lg p-4">
                     <canvas id="accessChart"></canvas>
                 </div>
 
@@ -223,14 +335,17 @@
         }
 
         // Xử lý Tab Navigation
-        function switchTab(tabId) {
+        function switchTab(tabId, clickedElement) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            
-            document.getElementById(`tab-${tabId}`).classList.add('active');
-            event.currentTarget.classList.add('active');
 
-            if (tabId === 'history') loadHistory();
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+
+            if (clickedElement) {
+                clickedElement.classList.add('active');
+            }
+
+            if (tabId === 'history') loadHistoryFromAWS();
             if (tabId === 'cards') loadCards();
             if (tabId === 'account') loadAccount();
         }
@@ -256,6 +371,7 @@
                     // Gọi hàm kiểm tra trạng thái ngay lập tức và thiết lập vòng lặp mỗi 2 giây
                     fetchDoorStatus();
                     doorStatusInterval = setInterval(fetchDoorStatus, 2000);
+                    loadHistoryFromAWS();
                 } else {
                     document.getElementById('login-error').innerText = data.message;
                     document.getElementById('login-error').classList.remove('hidden');
@@ -367,49 +483,190 @@
             }
         }
 
-        // 3. Logic Lịch sử & Biểu đồ
-        async function loadHistory() {
+        // 3. ID 6 - Lấy dữ liệu từ AWS RDS Cloud về Website
+        // AWS RDS -> Backend API -> Frontend Text + Chart
+        let historyChartInstance = null;
+        let historyLoadedOnce = false;
+
+        async function loadHistoryFromAWS() {
             try {
-                const res = await fetch(`${API_URL}/history`);
-                const data = await res.json();
+                // ------------------------------------------
+                // A. Lấy lịch sử chi tiết để hiển thị TEXT
+                // ------------------------------------------
+                const historyRes = await fetch(`${API_URL}/history`);
+                const historyJson = await historyRes.json();
+
+                if (!historyRes.ok || historyJson.success === false) {
+                    throw new Error(historyJson.error || 'Không thể lấy lịch sử từ AWS RDS');
+                }
+
+                const historyData = Array.isArray(historyJson)
+                    ? historyJson
+                    : (historyJson.data || []);
+
+                renderHistoryTable(historyData);
+
+                // ------------------------------------------
+                // B. Lấy dữ liệu thống kê theo ngày
+                // ------------------------------------------
+                const days = document.getElementById('chart-days')?.value || 30;
+                const summaryRes = await fetch(`${API_URL}/history-summary?days=${days}`);
+                const summaryJson = await summaryRes.json();
+
+                if (!summaryRes.ok || summaryJson.success === false) {
+                    throw new Error(summaryJson.error || 'Không thể lấy thống kê từ AWS RDS');
+                }
+
+                renderHistoryChart(summaryJson.data || []);
+
+                historyLoadedOnce = true;
+
+            } catch (error) {
+                console.error('ID 6 - Lỗi lấy dữ liệu AWS:', error);
+
                 const tbody = document.getElementById('history-table');
-                tbody.innerHTML = '';
-
-                let successCount = 0; let failCount = 0;
-
-                data.forEach(row => {
-                    row.status === 1 ? successCount++ : failCount++;
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-gray-50">
-                            <td class="p-4 font-mono">${row.uid}</td>
-                            <td class="p-4">${row.holder_name || '<i>Không xác định</i>'}</td>
-                            <td class="p-4">${new Date(row.access_time).toLocaleString('vi-VN')}</td>
-                            <td class="p-4 font-bold ${row.status === 1 ? 'text-green-600' : 'text-red-600'}">
-                                ${row.status === 1 ? 'HỢP LỆ' : 'TỪ CHỐI'}
-                            </td>
-                            <td class="p-4 text-gray-500">${row.note || ''}</td>
-                        </tr>
-                    `;
-                });
-                drawChart(successCount, failCount);
-            } catch (e) { console.error(e); }
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-6 text-center text-red-500">
+                            Không thể tải dữ liệu từ AWS RDS: ${escapeHtml(error.message)}
+                        </td>
+                    </tr>
+                `;
+            }
         }
 
-        function drawChart(success, fail) {
+        function renderHistoryTable(data) {
+            const tbody = document.getElementById('history-table');
+            tbody.innerHTML = '';
+
+            if (!data.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-6 text-center text-gray-500">
+                            Chưa có dữ liệu lịch sử trên AWS RDS.
+                        </td>
+                    </tr>
+                `;
+                updateSummaryCards(0, 0, 0);
+                return;
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+
+            data.forEach(row => {
+                const isSuccess = Number(row.status) === 1;
+                if (isSuccess) successCount++;
+                else failCount++;
+
+                const statusText = isSuccess ? 'HỢP LỆ' : 'TỪ CHỐI';
+                const statusClass = isSuccess ? 'text-green-600' : 'text-red-600';
+                const accessTime = row.access_time
+                    ? new Date(row.access_time).toLocaleString('vi-VN')
+                    : 'Không xác định';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-4 font-mono">${escapeHtml(row.uid || '')}</td>
+                        <td class="p-4">${escapeHtml(row.holder_name || 'Không xác định')}</td>
+                        <td class="p-4">${escapeHtml(accessTime)}</td>
+                        <td class="p-4 font-bold ${statusClass}">${statusText}</td>
+                        <td class="p-4 text-gray-500">${escapeHtml(row.note || '')}</td>
+                    </tr>
+                `;
+            });
+
+            updateSummaryCards(data.length, successCount, failCount);
+        }
+
+        function updateSummaryCards(total, success, fail) {
+            document.getElementById('summary-total').innerText = total;
+            document.getElementById('summary-success').innerText = success;
+            document.getElementById('summary-fail').innerText = fail;
+        }
+
+        function renderHistoryChart(data) {
+            const labels = data.map(row => formatDateOnly(row.access_date));
+            const successData = data.map(row => Number(row.success_count || 0));
+            const failData = data.map(row => Number(row.fail_count || 0));
+
             const ctx = document.getElementById('accessChart').getContext('2d');
-            if (chartInstance) chartInstance.destroy();
-            chartInstance = new Chart(ctx, {
+
+            if (historyChartInstance) {
+                historyChartInstance.destroy();
+            }
+
+            historyChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['Truy cập Hợp lệ', 'Truy cập Bất hợp lệ'],
-                    datasets: [{
-                        label: 'Số lượt',
-                        data: [success, fail],
-                        backgroundColor: ['#a78bfa', '#9ca3af'] 
-                    }]
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Truy cập hợp lệ',
+                            data: successData,
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Truy cập bị từ chối',
+                            data: failData,
+                            borderWidth: 1
+                        }
+                    ]
                 },
-                options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Ngày'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            },
+                            title: {
+                                display: true,
+                                text: 'Số lượt truy cập'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Lịch sử truy cập theo ngày - AWS RDS'
+                        }
+                    }
+                }
             });
+        }
+
+        function formatDateOnly(value) {
+            if (!value) return '';
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return String(value).slice(0, 10);
+            }
+
+            return date.toLocaleDateString('vi-VN');
+        }
+
+        // Tránh chèn dữ liệu từ database trực tiếp vào HTML.
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         // 4. Logic Quản lý Thẻ
@@ -475,14 +732,226 @@
             if (event.key === 'Enter') sendChatMessage();
         }
 
+        let isChatSending = false;
+
+
+        // ==========================================
+        // ID 9 - HIỂN THỊ TIN NHẮN
+        // ==========================================
+
+        function addChatMessage(message, sender) {
+
+            const container = document.getElementById('chat-messages');
+
+            if (!container) return;
+
+            const wrapper = document.createElement('div');
+
+            wrapper.className =
+                sender === 'user'
+                    ? 'flex justify-end mb-3'
+                    : 'flex justify-start mb-3';
+
+            const bubble = document.createElement('div');
+
+            bubble.className =
+                sender === 'user'
+                    ? 'bg-blue-500 text-white rounded-2xl px-4 py-3 max-w-[80%] text-left shadow-sm'
+                    : 'bg-white border rounded-2xl px-4 py-3 max-w-[80%] text-left shadow-sm';
+
+            const title = document.createElement('div');
+
+            title.className =
+                sender === 'user'
+                    ? 'font-bold mb-1'
+                    : 'font-bold text-blue-600 mb-1';
+
+            title.textContent =
+                sender === 'user'
+                    ? 'Bạn'
+                    : 'AI Assistant';
+
+            const content = document.createElement('div');
+
+            content.className =
+                sender === 'user'
+                    ? 'whitespace-pre-wrap'
+                    : 'text-gray-700 whitespace-pre-wrap';
+
+            content.textContent = message;
+
+            bubble.appendChild(title);
+            bubble.appendChild(content);
+
+            wrapper.appendChild(bubble);
+
+            container.appendChild(wrapper);
+
+            // Tự động cuộn xuống cuối
+            container.scrollTop = container.scrollHeight;
+
+            return wrapper;
+        }
+
+
+        // ==========================================
+        // ID 9 - HIỂN THỊ LOADING
+        // ==========================================
+
+        function addChatLoading() {
+
+            const container = document.getElementById('chat-messages');
+
+            const wrapper = document.createElement('div');
+
+            wrapper.className = 'flex justify-start mb-3';
+
+            wrapper.innerHTML = `
+                <div class="bg-white border rounded-2xl px-4 py-3 shadow-sm">
+                    <div class="font-bold text-blue-600 mb-1">
+                        AI Assistant
+                    </div>
+
+                    <div class="text-gray-500">
+                        Đang suy nghĩ...
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(wrapper);
+
+            container.scrollTop = container.scrollHeight;
+
+            return wrapper;
+        }
+
+
+        // ==========================================
+        // ID 9 - GỬI CÂU HỎI
+        // ==========================================
+
         async function sendChatMessage() {
+
+            if (isChatSending) return;
+
             const inputEl = document.getElementById('chat-input');
+            const sendButton = document.getElementById('chat-send-button');
+
+            if (!inputEl) return;
+
             const message = inputEl.value.trim();
 
             if (!message) return;
-            
-            alert(`Bạn vừa gửi lệnh: "${message}"\nTính năng xử lý AI đang được xây dựng ở Backend!`);
-            inputEl.value = ''; 
+
+            // Không cho gửi quá 1000 ký tự
+            if (message.length > 1000) {
+
+                alert('Câu hỏi không được vượt quá 1000 ký tự.');
+
+                return;
+            }
+
+            isChatSending = true;
+
+            // Hiển thị câu hỏi của người dùng
+            addChatMessage(message, 'user');
+
+            // Xóa ô nhập
+            inputEl.value = '';
+
+            // Disable nút gửi
+            if (sendButton) {
+                sendButton.disabled = true;
+                sendButton.innerText = '...';
+                sendButton.classList.add('opacity-50');
+            }
+
+            // Loading
+            const loadingMessage = addChatLoading();
+
+            try {
+
+                const response = await fetch(`${API_URL}/chat`, {
+
+                    method: 'POST',
+
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+
+                    body: JSON.stringify({
+                        message: message
+                    })
+                });
+
+                const data = await response.json();
+
+                // Xóa loading
+                if (loadingMessage) {
+                    loadingMessage.remove();
+                        }
+
+                // Backend trả lỗi
+                if (!response.ok || !data.success) {
+
+                    let errorMessage =
+                        data.message || 'Chatbot xảy ra lỗi.';
+
+                    if (data.errorType === 'QUOTA_EXCEEDED') {
+
+                        errorMessage =
+                            '⚠️ OpenAI API đã hết quota. ' +
+                            'Vui lòng nạp thêm credit để sử dụng chatbot.';
+                    }
+
+                    addChatMessage(errorMessage, 'ai');
+
+                    return;
+                }
+
+                // Hiển thị câu trả lời
+                addChatMessage(data.answer, 'ai');
+
+            } catch (error) {
+
+                console.error('[ID 9] Lỗi gọi Chatbot:', error);
+
+                if (loadingMessage) {
+                    loadingMessage.remove();
+                }
+
+                addChatMessage(
+                    '❌ Không thể kết nối tới Backend. Vui lòng kiểm tra server.',
+                    'ai'
+                );
+
+            } finally {
+
+                isChatSending = false;
+
+                if (sendButton) {
+                    sendButton.disabled = false;
+                    sendButton.innerText = 'Gửi';
+                    sendButton.classList.remove('opacity-50');
+                }
+
+                inputEl.focus();
+            }
+        }
+
+
+        // ==========================================
+        // ID 9 - ENTER ĐỂ GỬI
+        // ==========================================
+
+        function handleChatEnter(event) {
+
+            if (event.key === 'Enter') {
+
+                event.preventDefault();
+
+                sendChatMessage();
+            }
         }
 
         // Kiểm tra nếu đã login từ trước (khi F5 trang)
@@ -492,6 +961,7 @@
                 document.getElementById('main-layout').classList.remove('hidden');
                 fetchDoorStatus();
                 doorStatusInterval = setInterval(fetchDoorStatus, 2000);
+                loadHistoryFromAWS();
             }
         };
     </script>
