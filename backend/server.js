@@ -6,14 +6,15 @@ const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const nodemailer = require('nodemailer');
-const OpenAI = require('openai');
+const nodemailer = require('nodemailer'); 
 const axios = require('axios');
+const { GoogleGenAI } = require("@google/genai");
 
 
 const app = express();
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY
 });
 
 app.use(express.json());
@@ -593,7 +594,7 @@ Hệ thống Gmail SMTP đang hoạt động bình thường.
 // testEmail();
 
 // ==========================================
-// ID 9 - CHATBOT AI
+// ID 9 - CHATBOT AI - GEMINI
 // ==========================================
 
 app.post('/api/chat', async (req, res) => {
@@ -608,7 +609,7 @@ app.post('/api/chat', async (req, res) => {
             });
         }
 
-        // 2. Giới hạn độ dài để tránh request quá lớn
+        // 2. Giới hạn độ dài câu hỏi
         const userMessage = message.trim();
 
         if (userMessage.length > 1000) {
@@ -620,28 +621,29 @@ app.post('/api/chat', async (req, res) => {
 
         console.log(`[ID 9] Câu hỏi: ${userMessage}`);
 
-        // 3. Gọi OpenAI
-        const response = await openai.responses.create({
-            model: 'gpt-4o-mini',
+        // 3. Gọi Gemini API
+        const response = await ai.models.generateContent({
+            model: 'gemini-3.6-flash',
 
-            instructions:
-                'Bạn là trợ lý AI của hệ thống quản lý cửa thông minh Smart Key. ' +
-                'Hãy trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu. ' +
-                'Chỉ trả lời những gì liên quan đến hệ thống cửa thông minh, ' +
-                'RFID, thẻ ra vào, trạng thái cửa, lịch sử truy cập và cách sử dụng hệ thống. ' +
-                'Nếu câu hỏi không liên quan, hãy lịch sự thông báo rằng bạn chỉ hỗ trợ hệ thống Smart Key.',
+            contents: userMessage,
 
-            input: userMessage,
+            config: {
+                systemInstruction:
+                    'Bạn là trợ lý AI của hệ thống quản lý cửa thông minh Smart Key. ' +
+                    'Hãy trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu. ' +
+                    'Chỉ trả lời những gì liên quan đến hệ thống cửa thông minh, ' +
+                    'RFID, thẻ ra vào, trạng thái cửa, lịch sử truy cập và cách sử dụng hệ thống. ' +
+                    'Nếu câu hỏi không liên quan, hãy lịch sự thông báo rằng bạn chỉ hỗ trợ hệ thống Smart Key.',
 
-            // Giới hạn số token output để giảm chi phí
-            max_output_tokens: 300
+                maxOutputTokens: 10000 
+            }
         });
 
-        // 4. Lấy câu trả lời
-        const answer = response.output_text?.trim();
+        // 4. Lấy câu trả lời từ Gemini
+        const answer = response.text?.trim();
 
         if (!answer) {
-            console.error('[ID 9] OpenAI không trả về nội dung');
+            console.error('[ID 9] Gemini không trả về nội dung');
 
             return res.status(502).json({
                 success: false,
@@ -662,36 +664,35 @@ app.post('/api/chat', async (req, res) => {
         console.error('[ID 9] Lỗi Chatbot:', error);
 
         // ==========================================
-        // XỬ LÝ LỖI OPENAI
+        // XỬ LÝ LỖI GEMINI
         // ==========================================
 
-        // Hết quota / chưa có credit
+        // API Key sai / không hợp lệ
         if (
-            error?.status === 429 ||
-            error?.code === 'insufficient_quota' ||
-            error?.error?.code === 'insufficient_quota'
+            error?.status === 401 ||
+            error?.status === 403
         ) {
-            return res.status(429).json({
-                success: false,
-                errorType: 'QUOTA_EXCEEDED',
-                message: 'API OpenAI hiện đã hết quota. Vui lòng kiểm tra Billing/Credit.'
-            });
-        }
-
-        // API Key sai hoặc không hợp lệ
-        if (error?.status === 401) {
             return res.status(500).json({
                 success: false,
                 errorType: 'INVALID_API_KEY',
-                message: 'OpenAI API Key không hợp lệ hoặc chưa được cấu hình.'
+                message: 'Gemini API Key không hợp lệ hoặc chưa được cấu hình.'
             });
         }
 
-        // Các lỗi OpenAI khác
+        // Hết quota / vượt giới hạn request
+        if (error?.status === 429) {
+            return res.status(429).json({
+                success: false,
+                errorType: 'QUOTA_EXCEEDED',
+                message: 'Gemini API hiện đã vượt giới hạn miễn phí. Vui lòng thử lại sau.'
+            });
+        }
+
+        // Các lỗi khác
         return res.status(500).json({
             success: false,
             errorType: 'AI_ERROR',
-            message: 'Không thể xử lý yêu cầu bằng AI.'
+            message: 'Không thể xử lý yêu cầu bằng Gemini AI.'
         });
     }
 });
@@ -712,7 +713,7 @@ app.get('/api/chat-health', (req, res) => {
 // ==========================================
 // ID 7 - TELEGRAM
 // ==========================================
--
+
 async function sendTelegramNotification(uid, accessTime, status, note) {
     try {
         const message =
