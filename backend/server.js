@@ -64,8 +64,6 @@ const mqttOptions = {
 
 const mqttClient = mqtt.connect(process.env.MQTT_BROKER, mqttOptions);
 
-// Biến lưu trạng thái vật lý của cánh cửa (OPEN / CLOSED)
-let currentPhysicalState = "CLOSED"; 
 
 mqttClient.on('connect', () => {
     console.log('Đã kết nối thành công tới AWS IoT Core!');
@@ -82,6 +80,8 @@ mqttClient.on('error', (err) => {
 // ==========================================
 //  XỬ LÝ LOGIC QUẸT THẺ TỪ ESP32
 // ==========================================
+// Biến lưu trạng thái vật lý của cánh cửa (OPEN / CLOSED)
+let currentPhysicalState = "CLOSED"; 
 mqttClient.on('message', (topic, message) => {
     if (topic === 'MSSV/door_physical_state') {
         currentPhysicalState = message.toString().trim();
@@ -408,24 +408,7 @@ app.get('/api/history-summary', (req, res) => {
     });
 });
 
-// // API Chuyển chế độ cửa (AUTO / LOCKED / UNLOCKED) từ Web
-// app.post('/api/control-door', (req, res) => {
-//     const { command } = req.body; // Cập nhật trạng thái "AUTO", "LOCKED", hoặc "UNLOCKED"
-    
-//     console.log(`[Web API] Cập nhật chế độ cửa thành: ${command}`);
 
-//     // Ghi trạng thái mới vào bảng DoorStatus trên RDS
-//     db.query('INSERT INTO DoorStatus (status) VALUES (?)', [command], (err) => {
-//         if (err) return res.status(500).json({ message: 'Lỗi ghi trạng thái cửa vào RDS' });
-
-//         // Bắn tín hiệu điều khiển xuống ESP32
-//         mqttClient.publish('MSSV/door_control', JSON.stringify({ command: command }), (mqttErr) => {
-//             if (mqttErr) return res.status(500).json({ message: 'Lỗi gửi lệnh MQTT' });
-//             res.json({ success: true, status: `Đã cập nhật chế độ cửa thành [${command}]` });
-//         });
-//     });
-// });
-// API Chuyển chế độ cửa (AUTO / LOCKED / UNLOCKED) từ Web
 app.post('/api/control-door', (req, res) => {
     const { command } = req.body; // Giá trị: "AUTO", "LOCKED", hoặc "UNLOCKED"
     
