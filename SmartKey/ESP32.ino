@@ -5,16 +5,31 @@
 #include <MFRC522.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
-#include <RTClib.h>
+#include <ESP32Servo.h>
 
 // Đổi WiFiClient -> WiFiClientSecure
 WiFiClientSecure net = WiFiClientSecure();
 PubSubClient mqttClient(net);
+const char* ssid = "mngc";
+const char* password = "zbma6538";
 
-RTC_DS3231 rtc; // Khởi tạo đối tượng RTC
+// Các biến để lưu trữ trạng thái chế độ
+String lastMode;
+String currentMode = "AUTO";
 
-const char* ssid = "Wokwi-GUEST";
-const char* password = "";
+// Các biến của switch
+const int DOOR_SWITCH_PIN = 27;
+int lastStateSwitch = -1;
+
+// Servo 
+int servoPin = 13;
+Servo servo;
+
+// RFID: Định nghĩa chân kết nối với ESP32
+#define RST_PIN  22
+#define SS_PIN   5 
+// RFID: Khởi tạo đối tượng MFRC522
+MFRC522 rfid(SS_PIN, RST_PIN); 
 
 // --- CẤU HÌNH AWS IOT CORE ---
 const char* awsEndpoint = "a3pbjc0ct25cdw-ats.iot.ap-southeast-2.amazonaws.com"; 
@@ -101,26 +116,6 @@ DwDEPKvK79fmG0a0mGxWfsr5wF3eAdv+Ah6li7T43o/hJQXDYrqhMYQ=
 
 )KEY";
 
-
-
-
-
-// RFID: Định nghĩa chân kết nối với ESP32
-#define RST_PIN  17
-#define SS_PIN   23   
-
-// RFID: Khởi tạo đối tượng MFRC522
-MFRC522 rfid(SS_PIN, RST_PIN); 
-
-//RFID: Định nghĩa UID của một thẻ hợp lệ được phép ra vào (thẻ màu xanh dương mặc định)
-String authorizedUID = "01 02 03 04"; 
-
-
-// Cấu hình múi giờ Việt Nam (GMT+7, không đổi giờ mùa hè)
-const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 7 * 3600;       // 7 tiếng = 25200 giây
-const int daylightOffset_sec = 0;
-
 void wifiConnect() {
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -138,7 +133,8 @@ void mqttConnect() {
       Serial.println("connected");
 
       //***Subscribe all topic you need***
-      mqttClient.subscribe("MSSV/led");
+      mqttClient.subscribe("MSSV/door_control");
+      mqttClient.subscribe("MSSV/door_access");
      
     }
     else {
@@ -149,35 +145,146 @@ void mqttConnect() {
   }
 }
 
+
+String msgDoorAccess;
 //MQTT Receiver
 void callback(char* topic, byte* message, unsigned int length) {
+  msgDoorAccess = "";
   Serial.println(topic);
-  String msg;
   for(int i=0; i<length; i++) {
-    msg += (char)message[i];
+    msgDoorAccess += (char)message[i];
   }
-  Serial.println(msg);
+  Serial.println(msgDoorAccess);
 
   //***Code here to process the received package***
+  
+  if (String(topic) == "MSSV/door_access") {
+    if (msgDoorAccess == "HIGH") {
+      Serial.println("Nhận được lệnh HIGH -> Đang mở cửa!");
+      servo.write(0); 
+    }
+    
+    // Nếu nhận được lệnh "LOW" -> ĐÓNG CỬA NGAY
+    if (msgDoorAccess == "LOW") {
+      Serial.println("Nhận được lệnh LOW -> Đang đóng cửa!");
+      servo.write(90);  
+    }
 
+    if(msgDoorAccess == "Thẻ không tồn tại trong hệ thống")
+      Serial.println("Thẻ không tồn tại trong hệ thống");
+
+    if(msgDoorAccess == "Thẻ đã bị vô hiệu hóa")
+      Serial.println("Thẻ đã bị vô hiệu hóa");
+  }
+  if (String(topic) == "MSSV/door_control") {
+    
+    // --- KIỂM TRA ĐIỀU KIỆN TIÊN QUYẾT TẠI PHẦN CỨNG ---
+    int switchState = digitalRead(DOOR_SWITCH_PIN);
+    
+    if (switchState == HIGH) { 
+      // HIGH = Limit switch nhả -> Cửa đang mở vật lý
+      Serial.println("TỪ CHỐI THỰC THI: Cửa đang mở vật lý, không được phép đổi chế độ!");
+      return; // THOÁT KHỎI HÀM NGAY LẬP TỨC, không đổi currentMode
+    }
+
+    // --- NẾU CỬA ĐANG ĐÓNG (LOW), BẮT ĐẦU CHUYỂN CHẾ ĐỘ ---
+    if(msgDoorAccess == "AUTO"){
+      Serial.println("Cửa đang ở trạng thái AUTO");
+      currentMode = "AUTO";
+      servo.write(90); // Đang đóng cửa thì chốt khóa
+    }
+    else if(msgDoorAccess == "UNLOCKED"){
+      Serial.println("Cửa đang ở trạng thái UNLOCKED");
+      currentMode = "UNLOCKED";
+      servo.write(0); // Mở chốt sẵn
+    }
+    else if(msgDoorAccess == "LOCKED"){
+      Serial.println("Cửa đang ở trạng thái LOCKED");
+      currentMode = "LOCKED";
+      servo.write(90); // Khóa chốt
+    }
+  }
 }
 
-String getFormattedTimestamp() {
-    DateTime now = rtc.now(); // Đọc trực tiếp từ phần cứng RTC lập tức
-    
-    char buffer[25];
-    sprintf(buffer, "%04d-%02d-%02d %02d:%02d:%02d", 
-            now.year(), now.month(), now.day(), 
-            now.hour(), now.minute(), now.second());
-            
-    return String(buffer);
+
+void readRFIDCard(){
+  // Kiểm tra xem có thẻ mới đưa vào gần đầu đọc không
+  if (!rfid.PICC_IsNewCardPresent()) {
+    return;
+  }
+
+  //  Đọc UID của thẻ
+  if (!rfid.PICC_ReadCardSerial()) {
+    return;
+  }
+
+  // Chuyển đổi UID đọc được thành dạng chuỗi (String) để dễ so sánh
+  String currentUID = "";
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    currentUID += (rfid.uid.uidByte[i] < 0x10 ? " 0" : " ");
+    currentUID += String(rfid.uid.uidByte[i], HEX);
+  }
+  currentUID.trim(); // Xóa khoảng trắng thừa ở đầu
+  currentUID.toUpperCase(); // Chuyển về chữ hoa cho đồng bộ
+
+  Serial.print("Mã UID của thẻ vừa quẹt: ");
+  Serial.println(currentUID);
+
+
+  // Dừng đọc thẻ hiện tại để tránh đọc lặp liên tục
+  rfid.PICC_HaltA();
+
+  //***Publish data to MQTT Server***
+    // Tạo đối tượng JSON
+    StaticJsonDocument<200> jsonDoc;
+    jsonDoc["uid"] = currentUID;
+
+    // Chuyển sang chuỗi JSON và Publish MQTT
+    char jsonBuffer[256];
+    serializeJson(jsonDoc, jsonBuffer);
+    mqttClient.publish("MSSV/access_log", jsonBuffer);
+}
+
+unsigned long lastDoorPublish = 0; 
+
+void doorSwitch() {
+  int currentStateSwitch = digitalRead(DOOR_SWITCH_PIN);
+  String physicalState = (currentStateSwitch == LOW) ? "CLOSED" : "OPEN";
+
+  // 1. Chỉ in ra Serial Monitor khi có sự thay đổi vật lý
+  if (currentStateSwitch != lastStateSwitch) {
+    lastStateSwitch = currentStateSwitch;
+
+    if (currentStateSwitch == LOW) {
+      Serial.println("[CỬA ĐÓNG]: Cửa đã ép sát khung.");
+      if (currentMode == "AUTO" || currentMode == "LOCKED") {
+        servo.write(90);
+      } else if (currentMode == "UNLOCKED") {
+        servo.write(0);
+      }
+    } else {
+      Serial.println("[CỬA MỞ]: Cửa đang mở.");
+    }
+  }
+
+  // 2. Publish MQTT định kỳ mỗi 3 giây (3000ms) để đồng bộ với Backend
+  if (millis() - lastDoorPublish > 3000) {
+    mqttClient.publish("MSSV/door_physical_state", physicalState.c_str());
+    lastDoorPublish = millis();
+  }
 }
 
 
 
 void setup() {
-  Serial.begin(9600);
+   Serial.begin(115200);
+
+  // Chờ 2 giây để cửa sổ Serial Monitor kịp kết nối
+  delay(2000); 
+
   Serial.print("Connecting to WiFi");
+
+  pinMode(DOOR_SWITCH_PIN, INPUT_PULLUP);
 
   wifiConnect();
 
@@ -191,21 +298,36 @@ void setup() {
   mqttClient.setCallback(callback);
   
   // RFID
-  SPI.begin(22, 19, 21, 23);  // Khởi tạo giao tiếp SPI
-  rfid.PCD_Init();   // Khởi tạo module MFRC522
+  SPI.begin();
+  rfid.PCD_Init();
+  rfid.PCD_DumpVersionToSerial();
   Serial.println("Vui lòng quẹt thẻ...");
+ 
+  // Servo 
+  // ESP32Servo khuyến nghị cấp phát timer (tùy chọn nhưng nên có để ổn định)
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
   
-  // Khai báo chân SDA (35) và SCL (32) tùy chỉnh cho ESP32 trước
-  Wire.begin(14, 32);
+  servo.setPeriodHertz(50); // Servo chuẩn chạy ở 50Hz
+  servo.attach(servoPin, 500, 2400); // Gắn chân 13, setup xung min/max chuẩn
 
-  // Khởi động RTC với cổng Wire vừa cấu hình
-  if (!rtc.begin(&Wire)) {
-    Serial.println("Không tìm thấy module RTC!");
-  } else {
-    Serial.println("Đã kết nối RTC thành công!");
+  // Set trạng thái ban đầu dựa vào currentMode thay vì msgDoorAccess
+  if(currentMode == "AUTO"){
+    servo.write(90); // Khóa chốt
+    Serial.println("Đang ở trạng thái [AUTO]: đã đóng chốt");
   }
+  if(currentMode == "UNLOCKED") {
+    servo.write(90); // Khóa chốt
+    Serial.println("Đang ở trạng thái [LOCKED]: đã đóng chốt");
+  }
+  if(currentMode == "UNLOCKED"){
+    servo.write(0);  // Mở chốt sẵn
+    Serial.println("Đang ở trạng thái [UNLOCKED]: đã mở chốt");
+  }
+  
 }
-
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
@@ -217,55 +339,6 @@ void loop() {
   }
   mqttClient.loop();
 
-
-  // ============== KHỐI LỆNH ĐỌC THẺ =======================
-  // 1. Kiểm tra xem có thẻ mới đưa vào gần đầu đọc không
-  if (!rfid.PICC_IsNewCardPresent()) {
-    return;
-  }
-
-  // 2. Đọc serial (UID) của thẻ
-  if (!rfid.PICC_ReadCardSerial()) {
-    return;
-  }
-
-  // 3. Chuyển đổi UID đọc được thành dạng chuỗi (String) để dễ so sánh
-  String currentUID = "";
-  for (byte i = 0; i < rfid.uid.size; i++) {
-    currentUID += (rfid.uid.uidByte[i] < 0x10 ? " 0" : " ");
-    currentUID += String(rfid.uid.uidByte[i], HEX);
-  }
-  currentUID.trim(); // Xóa khoảng trắng thừa ở đầu
-  currentUID.toUpperCase(); // Chuyển về chữ hoa cho đồng bộ
-
-  Serial.print("Mã UID của thẻ vừa quẹt: ");
-  Serial.println(currentUID);
-
-  // 4. So sánh thẻ có hợp lệ hay không (Logic ra vào)
-  if (currentUID == "01:02:03:04" || currentUID == "01 02 03 04") { // Tùy thuộc định dạng in
-    Serial.println("--> Xin chào Alice! ĐÃ XÁC THỰC: Mở cửA.");
-    
-  } else {
-    Serial.println("--> CẢNH BÁO: Thẻ không hợp lệ! Từ chối truy cập.");
-  }
-
-  // Dừng đọc thẻ hiện tại để tránh đọc lặp liên tục
-  rfid.PICC_HaltA();
-  //***Publish data to MQTT Server***
-  String accessTime = getFormattedTimestamp();
-
-    // Tạo đối tượng JSON
-    StaticJsonDocument<200> jsonDoc;
-    jsonDoc["uid"] = currentUID;
-    jsonDoc["access_time"] = accessTime; 
-
-    // Chuyển sang chuỗi JSON và Publish MQTT
-    char jsonBuffer[256];
-    serializeJson(jsonDoc, jsonBuffer);
-    mqttClient.publish("MSSV/access_log", jsonBuffer);
-
-  delay(1000); // Chờ 1 giây cho lần quẹt tiếp theo
-
+  readRFIDCard();
+  doorSwitch();
 }
-
-
